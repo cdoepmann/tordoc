@@ -6,7 +6,7 @@ use std::net::Ipv4Addr;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-use super::DocumentParseError;
+use crate::error::DocumentParseError;
 
 use super::meta;
 use meta::{Document, Fingerprint};

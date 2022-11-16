@@ -1,6 +1,6 @@
 //! Tor server descriptor documents
 
-use super::DocumentParseError;
+use crate::error::DocumentParseError;
 
 use super::meta;
 use meta::{Document, Fingerprint};
