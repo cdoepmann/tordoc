@@ -1,9 +1,27 @@
-//! Parser for Tor docs.
+//! A parser for Tor docs.
+//!
+//! This crate implements parsing of Tor documents as specified in
+//! [dir-spec](https://gitlab.torproject.org/tpo/core/torspec/-/blob/main/dir-spec.txt).
+//! For now, this crate only parses consensus documents (`@type network-status-consensus-3`)
+//! and full relay descriptors (`@type server-descriptor`).
+//! Also, only a very limited subset of data is parsed.
+//!
+//! Please be aware that the API is currently _very_ unfinished and will likely
+//! change soon in an incompatible way.
 
-mod consensus;
-mod descriptor;
-mod error;
+pub mod consensus;
+#[doc(inline)]
+pub use consensus::Consensus;
+
+pub mod descriptor;
+#[doc(inline)]
+pub use descriptor::Descriptor;
+
+pub mod error;
+
 mod meta;
+
+// Solely for private use
 mod seeded_rand;
 
 // // other local modules

@@ -36,12 +36,28 @@ pub struct Descriptor {
 }
 
 impl Descriptor {
-    /// Construct from an already-parsed Document object
-    pub fn from_doc(doc: Document) -> Result<Descriptor, DocumentParseError> {
+    /// Parse a descriptor document from raw text.
+    pub fn from_str(text: impl AsRef<str>) -> Result<Descriptor, DocumentParseError> {
+        let doc = Document::parse_single(text.as_ref())?;
+        Self::from_doc(doc)
+    }
+
+    /// Parse several descriptor documents all contained in a raw text.
+    pub fn many_from_str(text: impl AsRef<str>) -> Result<Vec<Descriptor>, DocumentParseError> {
+        let docs = Document::parse_many(text.as_ref())?;
+        let descriptors = docs
+            .into_iter()
+            .map(Descriptor::from_doc)
+            .collect::<Result<_, _>>()?;
+        Ok(descriptors)
+    }
+
+    /// Parse a descriptor document from an already-parsed Tor meta document
+    pub(crate) fn from_doc(doc: Document) -> Result<Descriptor, DocumentParseError> {
         let mut builder = DescriptorBuilder::default();
 
         // compute digest
-        builder.digest(Descriptor::digest_from_raw(
+        builder.digest(digest_from_raw(
             doc.get_raw_content_between("router", "\nrouter-signature\n")?,
         ));
 
@@ -108,13 +124,13 @@ impl Descriptor {
 
         Ok(builder.build()?)
     }
+}
 
-    /// Compute te digest given the extracted raw content
-    pub fn digest_from_raw<R: AsRef<[u8]>>(raw: R) -> Fingerprint {
-        let raw = raw.as_ref();
-        let mut hasher = Sha1::new();
-        hasher.update(raw);
-        let result = hasher.finalize();
-        Fingerprint::from_u8(&result)
-    }
+/// Compute a descriptor's digest given the extracted raw content
+pub fn digest_from_raw<R: AsRef<[u8]>>(raw: R) -> Fingerprint {
+    let raw = raw.as_ref();
+    let mut hasher = Sha1::new();
+    hasher.update(raw);
+    let result = hasher.finalize();
+    Fingerprint::from_u8(&result)
 }

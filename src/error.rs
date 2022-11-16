@@ -1,8 +1,10 @@
+//! Custom error types for the parsing of Tor documents
+
 use std::num::ParseIntError;
 
 use thiserror;
 
-/// Custom Error Type
+/// Error that occured when parsing a Tor document
 #[derive(thiserror::Error, Debug)]
 pub enum DocumentParseError {
     #[error("an internal parsing error occured (raised by nom)")]
@@ -14,7 +16,7 @@ pub enum DocumentParseError {
         character: usize,
     },
     #[error("When parsing a consensus, a relay did not have all necessary information")]
-    RelayIncomplete(#[from] super::consensus::ShallowRelayBuilderError),
+    RelayIncomplete(#[source] Box<dyn std::error::Error>),
     #[error("When parsing a descriptor, the relay did not have all necessary information")]
     DescriptorIncomplete(#[from] super::descriptor::DescriptorBuilderError),
     #[error("An item with keyword '{keyword}' unexpectedly had no or not enough arguments")]
@@ -56,7 +58,7 @@ pub enum DocumentParseError {
 impl DocumentParseError {
     /// Create a new error of variant `InputRemaining`, based on the
     /// observed parser inputs.
-    pub fn remaining(total_input: &str, remaining_input: &str) -> DocumentParseError {
+    pub(crate) fn remaining(total_input: &str, remaining_input: &str) -> DocumentParseError {
         if remaining_input.len() > total_input.len() {
             panic!(
                 "More input remaining ({}) than was available before parsing ({}) of Tor document.",
@@ -85,4 +87,6 @@ pub enum DocumentCombiningError {
     MissingDescriptor { digest: super::meta::Fingerprint },
     #[error("Descriptors cannot be found because the consensus file is not in a suitable folder structure")]
     InvalidFolderStructure,
+    #[error("There was an error when parsing one of the referenced descriptor documents")]
+    DocumentParseError(#[from] DocumentParseError),
 }

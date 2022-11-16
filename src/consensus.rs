@@ -2,13 +2,16 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::fs::File;
+use std::io::prelude::*;
 use std::net::Ipv4Addr;
 use std::num::ParseIntError;
+use std::path::Path;
 use std::str::FromStr;
 
-use crate::error::DocumentParseError;
-
 use super::meta;
+use crate::descriptor::Descriptor;
+use crate::error::{DocumentCombiningError, DocumentParseError};
 use meta::{Document, Fingerprint};
 
 //
@@ -16,6 +19,7 @@ use meta::{Document, Fingerprint};
 //
 use chrono::{offset::TimeZone, DateTime, Utc};
 use derive_builder::Builder;
+use regex::Regex;
 use strum::{EnumString, EnumVariantNames, IntoStaticStr, VariantNames};
 
 /// A relay flag in the consensus
@@ -268,16 +272,17 @@ impl fmt::Display for CondensedExitPolicy {
 
 /// A parsed consensus document ("network status").
 #[derive(Debug)]
-pub struct ConsensusDocument {
+pub struct Consensus {
     pub valid_after: DateTime<Utc>,
-    pub relays: Vec<ShallowRelay>,
+    pub relays: Vec<Relay>,
     pub weights: BTreeMap<String, u64>,
 }
 
 /// A relay entry within the consensus, containing only these sparse information
 /// instead of the full server descriptor
 #[derive(Debug, Builder)]
-pub struct ShallowRelay {
+#[builder(private)]
+pub struct Relay {
     pub nickname: String,
     pub fingerprint: Fingerprint,
     pub digest: Fingerprint,
@@ -294,19 +299,19 @@ pub struct ShallowRelay {
 
 ///
 
-impl ConsensusDocument {
+impl Consensus {
     /// Parse a consensus document from raw text.
-    pub fn from_str(text: &str) -> Result<ConsensusDocument, DocumentParseError> {
-        let doc = Document::parse_single(text)?;
+    pub fn from_str(text: impl AsRef<str>) -> Result<Consensus, DocumentParseError> {
+        let doc = Document::parse_single(text.as_ref())?;
         Self::from_doc(doc)
     }
     /// Parse a consensus document from an already-parsed Tor meta document
-    pub fn from_doc(doc: Document) -> Result<ConsensusDocument, DocumentParseError> {
+    pub(crate) fn from_doc(doc: Document) -> Result<Consensus, DocumentParseError> {
         // the current relay we're constructing
-        let mut relay: Option<ShallowRelayBuilder> = None;
+        let mut relay: Option<RelayBuilder> = None;
 
         // collected relays
-        let mut relays: Vec<ShallowRelay> = Vec::new();
+        let mut relays: Vec<Relay> = Vec::new();
 
         // collect relays
         for item in doc.items.iter().skip_while(|&x| x.keyword != "r") {
@@ -314,10 +319,14 @@ impl ConsensusDocument {
                 "r" => {
                     // if another relay was in process, finish it
                     if let Some(old) = relay.take() {
-                        relays.push(old.build()?);
+                        relays.push(
+                            old.build().map_err(|err| {
+                                DocumentParseError::RelayIncomplete(Box::new(err))
+                            })?,
+                        );
                     }
                     // start a new relay
-                    relay = Some(ShallowRelayBuilder::default());
+                    relay = Some(RelayBuilder::default());
                     let relay = relay.as_mut().unwrap();
 
                     // parse entries
@@ -455,7 +464,11 @@ impl ConsensusDocument {
                 }
                 _ => {
                     if let Some(last) = relay.take() {
-                        relays.push(last.build()?);
+                        relays.push(
+                            last.build().map_err(|err| {
+                                DocumentParseError::RelayIncomplete(Box::new(err))
+                            })?,
+                        );
                     }
                     break;
                 }
@@ -497,10 +510,94 @@ impl ConsensusDocument {
             Utc.datetime_from_str(arg, "%Y-%m-%d %H:%M:%S")?
         };
         // return everything
-        Ok(ConsensusDocument {
+        Ok(Consensus {
             relays,
             weights,
             valid_after,
         })
+    }
+
+    /// Retrieve the descriptors refererenced in this consensus from local files.
+    ///
+    /// This is a convenience method to automatically retrieve and parse all
+    /// the descriptors referenced in this consensus.
+    /// This assumes that all the files are organized in a folder hierarchy
+    /// as created by extracting the files from [Tor Metrics/collecTor](https://collector.torproject.org/archive/relay-descriptors/).
+    ///
+    /// Since the consensus does not know its on-disk file path,
+    /// it has to be provided as a parameter here.
+    /// The descriptors are looked up relative to this location.
+    pub fn retrieve_descriptors(
+        &self,
+        consensus_path: impl AsRef<Path>,
+    ) -> Result<Vec<Descriptor>, DocumentCombiningError> {
+        let consensus_path = consensus_path.as_ref();
+        // get year and month
+        let fname_regex = Regex::new(r"^(\d{4})-(\d{2})-(\d{2})-").unwrap();
+        let fname_match = fname_regex
+            .captures(
+                consensus_path
+                    .file_name()
+                    .ok_or(DocumentCombiningError::InvalidFolderStructure)?
+                    .to_str()
+                    .ok_or(DocumentCombiningError::InvalidFolderStructure)?,
+            )
+            .ok_or(DocumentCombiningError::InvalidFolderStructure)?;
+        let this_year: u32 = fname_match.get(1).unwrap().as_str().parse().unwrap();
+        let this_month: u32 = fname_match.get(2).unwrap().as_str().parse().unwrap();
+
+        let (previous_year, previous_month) = if this_month == 1 {
+            (this_year - 1, 12)
+        } else {
+            (this_year, this_month - 1)
+        };
+
+        // find the corresponding descriptor folders (current month and the one before)
+        let current_desc = consensus_path
+            .parent()
+            .ok_or(DocumentCombiningError::InvalidFolderStructure)?
+            .join(format!(
+                "../../server-descriptors-{:04}-{:02}/",
+                this_year, this_month
+            ));
+        if !current_desc.exists() {
+            return Err(DocumentCombiningError::InvalidFolderStructure);
+        }
+        let previous_desc = consensus_path
+            .parent()
+            .ok_or(DocumentCombiningError::InvalidFolderStructure)?
+            .join(format!(
+                "../../server-descriptors-{:04}-{:02}/",
+                previous_year, previous_month
+            ));
+
+        // Lookup the descriptors
+        let mut descriptors = Vec::new();
+        for relay in self.relays.iter() {
+            let digest = format!("{}", relay.digest);
+            let first_char = digest.chars().next().unwrap();
+            let second_char = digest.chars().skip(1).next().unwrap();
+
+            let subpath = format!("{}/{}/{}", first_char, second_char, digest);
+            let current_path = current_desc.join(&subpath);
+            let previous_path = previous_desc.join(&subpath);
+
+            let desc_path = if current_path.exists() {
+                current_path
+            } else if previous_path.exists() {
+                previous_path
+            } else {
+                return Err(DocumentCombiningError::MissingDescriptor {
+                    digest: relay.digest.clone(),
+                });
+            };
+
+            let mut raw = String::new();
+            let mut file = File::open(desc_path).unwrap();
+            file.read_to_string(&mut raw).unwrap();
+            descriptors.push(Descriptor::from_str(raw)?);
+        }
+
+        Ok(descriptors)
     }
 }
