@@ -1,6 +1,7 @@
 //! The general meta format for Tor documents
 
 use std::fmt;
+use std::rc::Rc;
 
 use super::error::DocumentParseError;
 
@@ -243,14 +244,14 @@ impl<'a> Object<'a> {
 /// Under the hood, a fingerprint is currently just a blob.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Fingerprint {
-    blob: Vec<u8>,
+    blob: Rc<Vec<u8>>,
 }
 
 impl Fingerprint {
     pub fn from_str_b64(raw_b64: impl AsRef<str>) -> Result<Fingerprint, DocumentParseError> {
         let raw_b64 = raw_b64.as_ref();
         Ok(Fingerprint {
-            blob: base64::decode(raw_b64)?,
+            blob: Rc::new(base64::decode(raw_b64)?),
         })
     }
     pub fn from_str_hex(raw_hex: impl AsRef<str>) -> Result<Fingerprint, DocumentParseError> {
@@ -263,16 +264,20 @@ impl Fingerprint {
             raw_hex = &raw_hex[2..];
         }
 
-        Ok(Fingerprint { blob })
+        Ok(Fingerprint {
+            blob: Rc::new(blob),
+        })
     }
     pub fn from_u8(raw: impl AsRef<[u8]>) -> Fingerprint {
         Fingerprint {
-            blob: raw.as_ref().to_vec(),
+            blob: Rc::new(raw.as_ref().to_vec()),
         }
     }
 
     pub fn to_string_b64(&self) -> String {
-        base64::encode(&self.blob).trim_end_matches('=').to_string()
+        base64::encode(&(*self.blob))
+            .trim_end_matches('=')
+            .to_string()
     }
 
     pub fn to_string_hex(&self) -> String {
@@ -306,7 +311,7 @@ impl Fingerprint {
 
 impl fmt::Display for Fingerprint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for byte in &self.blob {
+        for byte in self.blob.iter() {
             write!(f, "{:02x}", byte)?;
         }
         Ok(())
@@ -352,7 +357,7 @@ mod tests {
         assert_eq!(
             Fingerprint::from_str_hex("12FF 0B42").unwrap(),
             Fingerprint {
-                blob: vec![0x12, 0xff, 0x0b, 0x42]
+                blob: Rc::new(vec![0x12, 0xff, 0x0b, 0x42])
             }
         );
     }
