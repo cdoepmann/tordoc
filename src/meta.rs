@@ -247,12 +247,14 @@ pub struct Fingerprint {
 }
 
 impl Fingerprint {
-    pub fn from_str_b64(raw_b64: &str) -> Result<Fingerprint, DocumentParseError> {
+    pub fn from_str_b64(raw_b64: impl AsRef<str>) -> Result<Fingerprint, DocumentParseError> {
+        let raw_b64 = raw_b64.as_ref();
         Ok(Fingerprint {
             blob: base64::decode(raw_b64)?,
         })
     }
-    pub fn from_str_hex(mut raw_hex: &str) -> Result<Fingerprint, DocumentParseError> {
+    pub fn from_str_hex(raw_hex: impl AsRef<str>) -> Result<Fingerprint, DocumentParseError> {
+        let mut raw_hex = raw_hex.as_ref();
         let mut blob = Vec::new();
         while raw_hex.len() > 0 {
             raw_hex = raw_hex.trim_start();
@@ -263,8 +265,10 @@ impl Fingerprint {
 
         Ok(Fingerprint { blob })
     }
-    pub fn from_u8(raw: &[u8]) -> Fingerprint {
-        Fingerprint { blob: raw.to_vec() }
+    pub fn from_u8(raw: impl AsRef<[u8]>) -> Fingerprint {
+        Fingerprint {
+            blob: raw.as_ref().to_vec(),
+        }
     }
 
     pub fn to_string_b64(&self) -> String {
