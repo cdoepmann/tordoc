@@ -70,7 +70,7 @@ pub struct SupportedProtocolVersion {
 }
 
 impl SupportedProtocolVersion {
-    fn supports(&self, v: u8) -> bool {
+    pub fn supports(&self, v: u8) -> bool {
         self.versions.contains(&v)
     }
 }
@@ -138,45 +138,45 @@ impl FromStr for SupportedProtocolVersion {
 
 /// Exit policy type
 #[derive(Debug, Clone, Copy)]
-enum PolicyType {
+pub enum ExitPolicyType {
     Accept,
     Reject,
 }
 
 /// Exit port entry
 #[derive(Debug, Clone, Copy)]
-enum PolicyEntry {
+pub enum ExitPolicyEntry {
     SinglePort(u16),
     PortRange { min: u16, max: u16 },
 }
 
-impl PolicyEntry {
-    fn matches_port(&self, port: u16) -> bool {
+impl ExitPolicyEntry {
+    pub fn matches_port(&self, port: u16) -> bool {
         match self {
-            PolicyEntry::SinglePort(a) => *a == port,
-            PolicyEntry::PortRange { min, max } => port >= *min && port <= *max,
+            ExitPolicyEntry::SinglePort(a) => *a == port,
+            ExitPolicyEntry::PortRange { min, max } => port >= *min && port <= *max,
         }
     }
 
-    fn to_ports(&self) -> Vec<u16> {
+    pub fn to_ports(&self) -> Vec<u16> {
         match *self {
-            PolicyEntry::SinglePort(x) => vec![x],
-            PolicyEntry::PortRange { min, max } => (min..=max).collect(),
+            ExitPolicyEntry::SinglePort(x) => vec![x],
+            ExitPolicyEntry::PortRange { min, max } => (min..=max).collect(),
         }
     }
 }
 
-impl FromStr for PolicyEntry {
+impl FromStr for ExitPolicyEntry {
     type Err = DocumentParseError;
 
     /// Parse from "3" or "2-5".
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.split_once('-') {
-            Some((min, max)) => Ok(PolicyEntry::PortRange {
+            Some((min, max)) => Ok(ExitPolicyEntry::PortRange {
                 min: u16::from_str_radix(min, 10)?,
                 max: u16::from_str_radix(max, 10)?,
             }),
-            None => Ok(PolicyEntry::SinglePort(u16::from_str_radix(s, 10)?)),
+            None => Ok(ExitPolicyEntry::SinglePort(u16::from_str_radix(s, 10)?)),
         }
         .map_err(
             |_: ParseIntError| DocumentParseError::InvalidExitPolicyEntry { raw: s.to_string() },
@@ -184,13 +184,13 @@ impl FromStr for PolicyEntry {
     }
 }
 
-impl fmt::Display for PolicyEntry {
+impl fmt::Display for ExitPolicyEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            PolicyEntry::SinglePort(x) => {
+            ExitPolicyEntry::SinglePort(x) => {
                 write!(f, "{}", x)?;
             }
-            PolicyEntry::PortRange { min: x, max: y } => {
+            ExitPolicyEntry::PortRange { min: x, max: y } => {
                 write!(f, "{}-{}", x, y)?;
             }
         }
@@ -201,17 +201,17 @@ impl fmt::Display for PolicyEntry {
 /// A relay's condensed exit policy (ports for "most" target IP addresses)
 #[derive(Debug, Clone)]
 pub struct CondensedExitPolicy {
-    policy_type: PolicyType,
-    entries: Vec<PolicyEntry>,
+    pub policy_type: ExitPolicyType,
+    pub entries: Vec<ExitPolicyEntry>,
 }
 
 impl CondensedExitPolicy {
     pub fn to_descriptor_lines(&self) -> Vec<String> {
         match self.policy_type {
-            PolicyType::Reject => {
+            ExitPolicyType::Reject => {
                 vec!["reject *:*".to_string()]
             }
-            PolicyType::Accept => {
+            ExitPolicyType::Accept => {
                 let mut lines = Vec::new();
 
                 for entry in self.entries.iter() {
@@ -235,13 +235,13 @@ impl FromStr for CondensedExitPolicy {
             .split_once(' ')
             .ok_or(DocumentParseError::MalformedExitPolicy)?;
         let policy_type = match cmd {
-            "accept" => PolicyType::Accept,
-            "reject" => PolicyType::Reject,
+            "accept" => ExitPolicyType::Accept,
+            "reject" => ExitPolicyType::Reject,
             _ => return Err(DocumentParseError::MalformedExitPolicy),
         };
         let entries = ports
             .split(',')
-            .map(|x| x.parse::<PolicyEntry>())
+            .map(|x| x.parse::<ExitPolicyEntry>())
             .collect::<Result<Vec<_>, _>>()?;
         Ok(CondensedExitPolicy {
             policy_type,
@@ -256,8 +256,8 @@ impl fmt::Display for CondensedExitPolicy {
             f,
             "{} {}",
             match self.policy_type {
-                PolicyType::Accept => "accept",
-                PolicyType::Reject => "reject",
+                ExitPolicyType::Accept => "accept",
+                ExitPolicyType::Reject => "reject",
             },
             self.entries
                 .iter()
