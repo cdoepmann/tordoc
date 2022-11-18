@@ -23,6 +23,7 @@ pub enum FamilyMember {
 /// We here only focus on pieces of information that aren't present in the
 /// consensus yet.
 #[derive(Debug, Clone, Builder)]
+#[builder(private)]
 pub struct Descriptor {
     pub nickname: String,
     pub fingerprint: Fingerprint,
@@ -122,7 +123,9 @@ impl Descriptor {
             }
         }
 
-        Ok(builder.build()?)
+        Ok(builder
+            .build()
+            .map_err(|e| DocumentParseError::Incomplete(Box::new(e)))?)
     }
 }
 

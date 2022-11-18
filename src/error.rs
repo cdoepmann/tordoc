@@ -15,10 +15,8 @@ pub enum DocumentParseError {
         line: usize,
         character: usize,
     },
-    #[error("When parsing a consensus, a relay did not have all necessary information")]
-    RelayIncomplete(#[source] Box<dyn std::error::Error>),
-    #[error("When parsing a descriptor, the relay did not have all necessary information")]
-    DescriptorIncomplete(#[from] super::descriptor::DescriptorBuilderError),
+    #[error("When parsing a document, not all necessary information were present")]
+    Incomplete(#[source] Box<dyn std::error::Error>),
     #[error("An item with keyword '{keyword}' unexpectedly had no or not enough arguments")]
     ItemArgumentsMissing { keyword: String },
     #[error("An item with keyword '{keyword}' was not expected at this position")]

@@ -320,9 +320,8 @@ impl Consensus {
                     // if another relay was in process, finish it
                     if let Some(old) = relay.take() {
                         relays.push(
-                            old.build().map_err(|err| {
-                                DocumentParseError::RelayIncomplete(Box::new(err))
-                            })?,
+                            old.build()
+                                .map_err(|err| DocumentParseError::Incomplete(Box::new(err)))?,
                         );
                     }
                     // start a new relay
@@ -465,9 +464,8 @@ impl Consensus {
                 _ => {
                     if let Some(last) = relay.take() {
                         relays.push(
-                            last.build().map_err(|err| {
-                                DocumentParseError::RelayIncomplete(Box::new(err))
-                            })?,
+                            last.build()
+                                .map_err(|err| DocumentParseError::Incomplete(Box::new(err)))?,
                         );
                     }
                     break;

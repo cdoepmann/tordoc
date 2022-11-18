@@ -20,6 +20,7 @@ pub use descriptor::Descriptor;
 pub mod error;
 
 mod meta;
+pub use meta::Fingerprint;
 
 // Solely for private use
 mod seeded_rand;

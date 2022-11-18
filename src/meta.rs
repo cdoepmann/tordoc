@@ -239,6 +239,8 @@ impl<'a> Object<'a> {
 }
 
 /// A relay fingerprint
+///
+/// Under the hood, a fingerprint is currently just a blob.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Fingerprint {
     blob: Vec<u8>,
