@@ -43,6 +43,7 @@ impl DocumentType {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct VersionedDocumentType {
     doctype: DocumentType,

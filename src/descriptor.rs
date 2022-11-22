@@ -8,6 +8,12 @@ use crate::error::DocumentParseError;
 use super::meta;
 use meta::{Document, Fingerprint};
 
+mod exit;
+pub use exit::{
+    DescriptorExitPolicy, DescriptorExitPolicyIPv6, DescriptorExitPolicyRule, ExitPolicyAddress,
+    ExitPolicyPort, ExitPolicyType, ExitPortRange,
+};
+
 //
 // External dependencies
 //
@@ -45,11 +51,20 @@ pub struct Descriptor {
     pub bandwidth_avg: u64,
     pub bandwidth_burst: u64,
     pub bandwidth_observed: u64,
+    pub exit_policy: DescriptorExitPolicy,
+    #[builder(default)]
+    pub exit_policies_ipv6: DescriptorExitPolicyIPv6,
 }
 
 impl DescriptorBuilder {
     fn add_or_address(&mut self, or: OrAddress) {
         self.or_addresses.get_or_insert_with(Vec::new).push(or);
+    }
+
+    fn add_exit_policy_rule(&mut self, epr: DescriptorExitPolicyRule) {
+        self.exit_policy
+            .get_or_insert_with(DescriptorExitPolicy::new)
+            .add_rule(epr);
     }
 }
 
@@ -181,6 +196,16 @@ impl Descriptor {
 
                         _ => return Err(DocumentParseError::args_missing(item.keyword)),
                     }
+                }
+                "accept" => {
+                    exit::parse_kw_accept(&mut builder, item)?;
+                }
+                "reject" => {
+                    exit::parse_kw_reject(&mut builder, item)?;
+                }
+
+                "ipv6-policy" => {
+                    exit::parse_kw_ipv6_policy(&mut builder, item)?;
                 }
                 _ => {}
             }

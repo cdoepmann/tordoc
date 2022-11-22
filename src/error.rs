@@ -51,6 +51,14 @@ pub enum DocumentParseError {
     ContentRangeNotFound { from: String, to: String },
     #[error("Invalid IP address of relay: {0}")]
     InvalidIpAddress(String),
+    #[error("Error parsing the IP Address")]
+    IpParseError(String),
+    #[error("Error parsing a range")]
+    RangeParseError(String),
+    #[error("Error parsing a value")]
+    ValueParseError(String),
+    #[error("Error expected \"accept\" or \"reject\" received: {0}")]
+    PolicyParseError(String),
 }
 
 impl DocumentParseError {
