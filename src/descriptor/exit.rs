@@ -1,16 +1,19 @@
 //! Submodule bundling all code for exit poliy parsing in descriptors
 
+use std::net::IpAddr;
+use std::str::FromStr;
+
 use crate::error::DocumentParseError;
 
 use super::meta::Item;
 use super::DescriptorBuilder;
 
-use ipaddress::IPAddress;
+use ipnet::IpNet;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum ExitPolicyAddress {
     Wildcard,
-    Address(IPAddress),
+    Address(IpNet),
 }
 
 impl ExitPolicyAddress {
@@ -114,14 +117,18 @@ fn parse_exit_policy_address(addr_str: &str) -> Result<ExitPolicyAddress, Docume
     if addr_str == "*" {
         return Ok(ExitPolicyAddress::Wildcard);
     } else {
-        /* TODO rework to use IpNet */
-        let addr = match ipaddress::IPAddress::parse(addr_str) {
-            Ok(addr) => addr,
-            Err(str) => {
-                return Err(DocumentParseError::IpParseError(str));
+        let network = {
+            if addr_str.contains('/') {
+                IpNet::from_str(addr_str)
+                    .map_err(|_| DocumentParseError::IpParseError(addr_str.to_string()))?
+            } else {
+                let addr = addr_str
+                    .parse::<IpAddr>()
+                    .map_err(|_| DocumentParseError::IpParseError(addr_str.to_string()))?;
+                IpNet::new(addr, 32).unwrap() // cannot panic because the provided prefix length 32 is valid
             }
         };
-        return Ok(ExitPolicyAddress::Address(addr));
+        return Ok(ExitPolicyAddress::Address(network));
     }
 }
 
