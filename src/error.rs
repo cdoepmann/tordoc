@@ -76,6 +76,13 @@ impl DocumentParseError {
             character,
         }
     }
+
+    /// Create a new ItemArgumentsMissing error, easily
+    pub fn args_missing(keyword: impl Into<String>) -> DocumentParseError {
+        DocumentParseError::ItemArgumentsMissing {
+            keyword: keyword.into(),
+        }
+    }
 }
 
 /// Error when combining consensus and descriptors

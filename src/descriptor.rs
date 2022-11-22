@@ -1,5 +1,8 @@
 //! Tor server descriptor documents
 
+use std::net::IpAddr;
+use std::str::FromStr;
+
 use crate::error::DocumentParseError;
 
 use super::meta;
@@ -18,6 +21,12 @@ pub enum FamilyMember {
     Nickname(String),
 }
 
+#[derive(Debug, Clone)]
+pub struct OrAddress {
+    pub ip: IpAddr,
+    pub port: u16,
+}
+
 /// A relay server descriptor.
 ///
 /// We here only focus on pieces of information that aren't present in the
@@ -29,11 +38,19 @@ pub struct Descriptor {
     pub fingerprint: Fingerprint,
     pub digest: Fingerprint,
     pub published: DateTime<Utc>,
+    #[builder(setter(custom))]
+    pub or_addresses: Vec<OrAddress>,
     #[builder(default)]
     pub family_members: Vec<FamilyMember>,
     pub bandwidth_avg: u64,
     pub bandwidth_burst: u64,
     pub bandwidth_observed: u64,
+}
+
+impl DescriptorBuilder {
+    fn add_or_address(&mut self, or: OrAddress) {
+        self.or_addresses.get_or_insert_with(Vec::new).push(or);
+    }
 }
 
 impl Descriptor {
@@ -68,8 +85,18 @@ impl Descriptor {
                     let splits = item.split_arguments()?;
                     match splits[..] {
                         // nickname address ORPort SOCKSPort DirPort
-                        [nickname, _ip, _or_port, _socks_port, _dir_port, ..] => {
+                        [nickname, ip, or_port, _socks_port, _dir_port, ..] => {
                             builder.nickname(nickname.to_string());
+
+                            let ip = IpAddr::from_str(ip).map_err(|_| {
+                                DocumentParseError::InvalidIpAddress(ip.to_string())
+                            })?;
+                            let or_address = OrAddress {
+                                ip: ip,
+                                port: or_port.parse::<u16>()?,
+                            };
+
+                            builder.add_or_address(or_address);
                         }
                         _ => {
                             return Err(DocumentParseError::ItemArgumentsMissing {
@@ -117,6 +144,42 @@ impl Descriptor {
                                 keyword: item.keyword.to_string(),
                             })
                         }
+                    }
+                }
+                "or-address" => {
+                    let arg = item.get_argument()?;
+                    let arg_split = arg.split(']').collect::<Vec<&str>>();
+                    match arg_split[..] {
+                        // IPv6
+                        [ip_str, port_str, ..] => {
+                            let ip = IpAddr::from_str(&ip_str[1..]).map_err(|_| {
+                                DocumentParseError::InvalidIpAddress(ip_str.to_string())
+                            })?;
+                            let or_address = OrAddress {
+                                ip: ip,
+                                port: port_str[1..].parse::<u16>()?,
+                            };
+                            builder.add_or_address(or_address);
+                        }
+                        // IPv4
+                        [ip_and_port_str] => {
+                            let split = ip_and_port_str.split(':').collect::<Vec<&str>>();
+                            match split[..] {
+                                [ip_str, port_str, ..] => {
+                                    let ip = IpAddr::from_str(&ip_str).map_err(|_| {
+                                        DocumentParseError::InvalidIpAddress(ip_str.to_string())
+                                    })?;
+                                    let or_address = OrAddress {
+                                        ip: ip,
+                                        port: port_str.parse::<u16>()?,
+                                    };
+                                    builder.add_or_address(or_address);
+                                }
+                                _ => return Err(DocumentParseError::args_missing(item.keyword)),
+                            }
+                        }
+
+                        _ => return Err(DocumentParseError::args_missing(item.keyword)),
                     }
                 }
                 _ => {}
