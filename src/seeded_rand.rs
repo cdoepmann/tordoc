@@ -26,6 +26,7 @@ lazy_static! {
 }
 
 /// Use "real" randomness to generate a random seed (using `thread_rng()`).
+#[allow(dead_code)]
 pub fn generate_random_seed() -> u64 {
     loop {
         let seed = rand::random();
@@ -35,6 +36,7 @@ pub fn generate_random_seed() -> u64 {
     }
 }
 
+#[allow(dead_code)]
 pub fn set_seed(seed: u64) {
     let mut global_state = GLOBAL_STATE.lock().unwrap();
     global_state.seed = seed;
