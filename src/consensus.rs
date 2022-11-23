@@ -159,9 +159,20 @@ impl ExitPolicyEntry {
     }
 
     pub fn to_ports(&self) -> Vec<u16> {
+        self.iter_ports().collect()
+    }
+
+    pub fn iter_ports(&self) -> impl Iterator<Item = u16> {
         match *self {
-            ExitPolicyEntry::SinglePort(x) => vec![x],
-            ExitPolicyEntry::PortRange { min, max } => (min..=max).collect(),
+            ExitPolicyEntry::SinglePort(x) => x..=x,
+            ExitPolicyEntry::PortRange { min, max } => min..=max,
+        }
+    }
+
+    pub fn contains(&self, port: u16) -> bool {
+        match *self {
+            ExitPolicyEntry::SinglePort(x) => x == port,
+            ExitPolicyEntry::PortRange { min, max } => min <= port && port <= max,
         }
     }
 }

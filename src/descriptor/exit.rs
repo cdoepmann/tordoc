@@ -73,6 +73,14 @@ impl ExitPolicyPort {
             ExitPolicyPort::Port(port) => port.to_string(),
         }
     }
+
+    pub fn contains(&self, port: u16) -> bool {
+        match self {
+            ExitPolicyPort::Wildcard => true,
+            ExitPolicyPort::Port(ExitPortRange::Single(v)) => *v == port,
+            ExitPolicyPort::Port(ExitPortRange::Interval(from, to)) => *from <= port && port <= *to,
+        }
+    }
 }
 impl DescriptorExitPolicyRule {
     pub fn to_string(&self) -> String {
