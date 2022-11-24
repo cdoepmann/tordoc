@@ -16,7 +16,7 @@ pub enum DocumentParseError {
         character: usize,
     },
     #[error("When parsing a document, not all necessary information were present")]
-    Incomplete(#[source] Box<dyn std::error::Error>),
+    Incomplete(#[source] Box<dyn std::error::Error + Send + Sync>),
     #[error("An item with keyword '{keyword}' unexpectedly had no or not enough arguments")]
     ItemArgumentsMissing { keyword: String },
     #[error("An item with keyword '{keyword}' was not expected at this position")]
