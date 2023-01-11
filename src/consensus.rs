@@ -236,6 +236,22 @@ impl CondensedExitPolicy {
             }
         }
     }
+
+    pub fn allows_port(&self, port: u16) -> bool {
+        match self.policy_type {
+            ExitPolicyType::Reject => {
+                return false;
+            }
+            ExitPolicyType::Accept => {
+                for entry in self.entries.iter() {
+                    if entry.contains(port) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+    }
 }
 
 impl FromStr for CondensedExitPolicy {
