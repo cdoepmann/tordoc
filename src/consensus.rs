@@ -307,7 +307,7 @@ pub struct Consensus {
 
 /// A relay entry within the consensus, containing only these sparse information
 /// instead of the full server descriptor
-#[derive(Debug, Builder)]
+#[derive(Debug, Clone, Builder)]
 #[builder(private)]
 pub struct Relay {
     pub nickname: String,
