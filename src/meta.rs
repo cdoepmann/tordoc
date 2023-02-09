@@ -243,7 +243,7 @@ impl<'a> Object<'a> {
 /// A relay fingerprint
 ///
 /// Under the hood, a fingerprint is currently just a blob.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Fingerprint {
     blob: Rc<Vec<u8>>,
 }
@@ -316,6 +316,12 @@ impl fmt::Display for Fingerprint {
             write!(f, "{:02x}", byte)?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Debug for Fingerprint {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
