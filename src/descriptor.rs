@@ -6,6 +6,7 @@ use std::str::FromStr;
 use crate::error::{DocumentParseError, ErrorContext};
 
 use super::meta;
+use meta::get_raw_content_between_bytes;
 use meta::{Document, Fingerprint};
 
 mod exit;
@@ -83,6 +84,34 @@ impl Descriptor {
             .map(Descriptor::from_doc)
             .collect::<Result<_, _>>()?;
         Ok(descriptors)
+    }
+
+    /// Parse a descriptor document from raw bytes.
+    ///
+    /// In contrast to [Descriptor::from_str], this function can also handle inputs with
+    /// invalid UTF-8. In this case, the descriptor's digest is calculated from
+    /// the original, non-UTF-8 content. Afterwards, the contents are converted
+    /// to UTF-8 in a lossy way. Therefore, later re-computation of the digest
+    /// (even if not mutating its content!) will yield a different result.
+    /// Consequently, this input method may be **lossy**.
+    pub fn from_bytes_lossy(bytes: impl AsRef<[u8]>) -> Result<Descriptor, DocumentParseError> {
+        let bytes = bytes.as_ref();
+
+        // Compute digest before converting to UTF-8
+        let digest = digest_from_raw(get_raw_content_between_bytes(
+            bytes,
+            b"router",
+            b"\nrouter-signature\n",
+        )?);
+
+        // Parse descriptor lossily
+        let lossy_text = String::from_utf8_lossy(bytes);
+        let mut descriptor = Descriptor::from_str(lossy_text)?;
+
+        // Override digest
+        descriptor.digest = digest;
+
+        Ok(descriptor)
     }
 
     /// Parse a descriptor document from an already-parsed Tor meta document

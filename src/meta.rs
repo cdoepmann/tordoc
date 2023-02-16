@@ -22,6 +22,7 @@ use nom::IResult;
 // use nom::multi::{many1};
 
 use base64;
+use memchr::memmem;
 use phf::phf_map;
 
 /// The type of a Tor document (consensus, router descriptors, etc.)
@@ -134,6 +135,24 @@ impl<'a> Document<'a> {
                 })?;
         Ok(&self.raw_content.as_bytes()[start_pos..end_pos + end.len()])
     }
+}
+
+pub(crate) fn get_raw_content_between_bytes<'a>(
+    bytes: &'a [u8],
+    start: &[u8],
+    end: &[u8],
+) -> Result<&'a [u8], DocumentParseError> {
+    let start_pos =
+        memmem::find(bytes, start).ok_or_else(|| DocumentParseError::ContentRangeNotFound {
+            from: format!("{:?}", start),
+            to: format!("{:?}", end),
+        })?;
+    let end_pos =
+        memmem::find(bytes, end).ok_or_else(|| DocumentParseError::ContentRangeNotFound {
+            from: format!("{:?}", start),
+            to: format!("{:?}", end),
+        })?;
+    Ok(&bytes[start_pos..end_pos + end.len()])
 }
 
 /// A generic item within a Tor doc.
