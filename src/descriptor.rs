@@ -130,8 +130,14 @@ impl Descriptor {
                         .iter()
                         .map(|x| {
                             if x.starts_with('$') {
+                                // if present, ignore everything starting from an "="
+                                let fp_raw = match x.split_once('=') {
+                                    Some((before, _after)) => &before[1..],
+                                    None => &x[1..],
+                                };
+
                                 Ok(FamilyMember::Fingerprint(Fingerprint::from_str_hex(
-                                    &x[1..],
+                                    fp_raw,
                                 )?))
                             } else {
                                 Ok(FamilyMember::Nickname(x.to_string()))
