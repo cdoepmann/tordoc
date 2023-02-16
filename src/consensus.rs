@@ -619,7 +619,7 @@ impl Consensus {
                 previous_path
             } else {
                 return Err(DocumentCombiningError::MissingDescriptor {
-                    digest: relay.digest.clone(),
+                    digest: relay.digest.to_string_hex(),
                 });
             };
 

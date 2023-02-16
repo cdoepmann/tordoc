@@ -98,7 +98,7 @@ impl DocumentParseError {
 #[derive(thiserror::Error, Debug)]
 pub enum DocumentCombiningError {
     #[error("No descriptor with digest {digest} found.")]
-    MissingDescriptor { digest: super::meta::Fingerprint },
+    MissingDescriptor { digest: String },
     #[error("Descriptors cannot be found because the consensus file is not in a suitable folder structure")]
     InvalidFolderStructure,
     #[error("There was an error when parsing one of the referenced descriptor documents")]
