@@ -31,6 +31,8 @@ pub enum Flag {
     Fast,
     Guard,
     HSDir,
+    Named,
+    Unnamed,
     NoEdConsensus,
     Running,
     Stable,
