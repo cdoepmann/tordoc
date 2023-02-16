@@ -3,7 +3,7 @@
 use std::net::IpAddr;
 use std::str::FromStr;
 
-use crate::error::DocumentParseError;
+use crate::error::{DocumentParseError, ErrorContext};
 
 use super::meta;
 use meta::{Document, Fingerprint};
@@ -108,7 +108,7 @@ impl Descriptor {
                             })?;
                             let or_address = OrAddress {
                                 ip: ip,
-                                port: or_port.parse::<u16>()?,
+                                port: or_port.parse::<u16>().context("OR port (descriptor)")?,
                             };
 
                             builder.add_or_address(or_address);
@@ -149,10 +149,18 @@ impl Descriptor {
                     match splits[..] {
                         // bandwidth-avg bandwidth-burst bandwidth-observed
                         [bandwidth_avg, bandwidth_burst, bandwidth_observed, ..] => {
-                            builder.bandwidth_avg(u64::from_str_radix(bandwidth_avg, 10)?);
-                            builder.bandwidth_burst(u64::from_str_radix(bandwidth_burst, 10)?);
-                            builder
-                                .bandwidth_observed(u64::from_str_radix(bandwidth_observed, 10)?);
+                            builder.bandwidth_avg(
+                                u64::from_str_radix(bandwidth_avg, 10)
+                                    .context("bw avg (descriptor)")?,
+                            );
+                            builder.bandwidth_burst(
+                                u64::from_str_radix(bandwidth_burst, 10)
+                                    .context("bw burst (descriptor)")?,
+                            );
+                            builder.bandwidth_observed(
+                                u64::from_str_radix(bandwidth_observed, 10)
+                                    .context("bw observed (descriptor)")?,
+                            );
                         }
                         _ => {
                             return Err(DocumentParseError::ItemArgumentsMissing {
@@ -172,7 +180,9 @@ impl Descriptor {
                             })?;
                             let or_address = OrAddress {
                                 ip: ip,
-                                port: port_str[1..].parse::<u16>()?,
+                                port: port_str[1..]
+                                    .parse::<u16>()
+                                    .context("OR-address port IPv6 (descriptor)")?,
                             };
                             builder.add_or_address(or_address);
                         }
@@ -186,7 +196,9 @@ impl Descriptor {
                                     })?;
                                     let or_address = OrAddress {
                                         ip: ip,
-                                        port: port_str.parse::<u16>()?,
+                                        port: port_str
+                                            .parse::<u16>()
+                                            .context("OR-address port IPv4 (descriptor)")?,
                                     };
                                     builder.add_or_address(or_address);
                                 }

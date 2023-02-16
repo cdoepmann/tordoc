@@ -1,6 +1,7 @@
 //! Custom error types for the parsing of Tor documents
 
 use std::num::ParseIntError;
+use std::string::ToString;
 
 use thiserror;
 
@@ -25,8 +26,8 @@ pub enum DocumentParseError {
     InvalidBase64(#[from] base64::DecodeError),
     #[error("Could not parse date/time")]
     InvalidDate(#[from] chrono::format::ParseError),
-    #[error("Could not parse integer")]
-    InvalidInt(#[from] ParseIntError),
+    #[error("Could not parse integer in {context}")]
+    InvalidInt { context: String },
     #[error("Unknown flag '{flag}'")]
     UnknownFlag { flag: String },
     #[error("Unknown protocol '{protocol}'")]
@@ -102,4 +103,20 @@ pub enum DocumentCombiningError {
     InvalidFolderStructure,
     #[error("There was an error when parsing one of the referenced descriptor documents")]
     DocumentParseError(#[from] DocumentParseError),
+}
+
+pub(crate) trait ErrorContext<T> {
+    type IntoError;
+
+    fn context(self, context: impl ToString) -> Result<T, Self::IntoError>;
+}
+
+impl<T> ErrorContext<T> for Result<T, ParseIntError> {
+    type IntoError = DocumentParseError;
+
+    fn context(self, context: impl ToString) -> Result<T, Self::IntoError> {
+        self.map_err(|_| DocumentParseError::InvalidInt {
+            context: context.to_string(),
+        })
+    }
 }

@@ -3,7 +3,7 @@
 use std::fmt;
 use std::rc::Rc;
 
-use super::error::DocumentParseError;
+use super::error::{DocumentParseError, ErrorContext};
 
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while};
@@ -260,7 +260,7 @@ impl Fingerprint {
         let mut blob = Vec::new();
         while raw_hex.len() > 0 {
             raw_hex = raw_hex.trim_start();
-            let byte = u8::from_str_radix(&raw_hex[..2], 16)?;
+            let byte = u8::from_str_radix(&raw_hex[..2], 16).context("fingerprint (hex)")?;
             blob.push(byte);
             raw_hex = &raw_hex[2..];
         }

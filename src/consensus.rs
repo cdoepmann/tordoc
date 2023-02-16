@@ -11,7 +11,7 @@ use std::str::FromStr;
 
 use super::meta;
 use crate::descriptor::Descriptor;
-use crate::error::{DocumentCombiningError, DocumentParseError};
+use crate::error::{DocumentCombiningError, DocumentParseError, ErrorContext};
 use meta::{Document, Fingerprint};
 
 //
@@ -118,15 +118,15 @@ impl FromStr for SupportedProtocolVersion {
         for component in s.split(',') {
             match component.split_once('-') {
                 Some((min, max)) => {
-                    let min = u8::from_str_radix(min, 10)?;
-                    let max = u8::from_str_radix(max, 10)?;
+                    let min = u8::from_str_radix(min, 10).context("protocol version (from)")?;
+                    let max = u8::from_str_radix(max, 10).context("protocol version (to)")?;
 
                     for i in min..=max {
                         versions.push(i);
                     }
                 }
                 None => {
-                    let elem = u8::from_str_radix(component, 10)?;
+                    let elem = u8::from_str_radix(component, 10).context("protocol version")?;
                     versions.push(elem);
                 }
             }
@@ -184,10 +184,12 @@ impl FromStr for ExitPolicyEntry {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.split_once('-') {
             Some((min, max)) => Ok(ExitPolicyEntry::PortRange {
-                min: u16::from_str_radix(min, 10)?,
-                max: u16::from_str_radix(max, 10)?,
+                min: u16::from_str_radix(min, 10).context("exit policy port (from)")?,
+                max: u16::from_str_radix(max, 10).context("exit policy port (to)")?,
             }),
-            None => Ok(ExitPolicyEntry::SinglePort(u16::from_str_radix(s, 10)?)),
+            None => Ok(ExitPolicyEntry::SinglePort(
+                u16::from_str_radix(s, 10).context("exit policy port")?,
+            )),
         }
         .map_err(
             |_: ParseIntError| DocumentParseError::InvalidExitPolicyEntry { raw: s.to_string() },
@@ -371,11 +373,13 @@ impl Consensus {
                                 DocumentParseError::InvalidIpAddress(ip.to_string())
                             })?;
                             relay.address(address);
-                            relay.or_port(u16::from_str_radix(or_port, 10)?);
-                            relay.dir_port(match u16::from_str_radix(dir_port, 10)? {
-                                0 => None,
-                                x => Some(x),
-                            });
+                            relay.or_port(u16::from_str_radix(or_port, 10).context("OR port")?);
+                            relay.dir_port(
+                                match u16::from_str_radix(dir_port, 10).context("dir port")? {
+                                    0 => None,
+                                    x => Some(x),
+                                },
+                            );
                         }
                         _ => {
                             return Err(DocumentParseError::ItemArgumentsMissing {
