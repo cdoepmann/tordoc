@@ -153,6 +153,13 @@ impl Descriptor {
                     let arg = item.get_argument()?;
                     builder.fingerprint(Fingerprint::from_str_hex(arg)?);
                 }
+                "opt" => {
+                    let arg = item.get_argument()?;
+                    if arg.starts_with("fingerprint ") {
+                        builder
+                            .fingerprint(Fingerprint::from_str_hex(&arg["fingerprint ".len()..])?);
+                    }
+                }
                 "family" => {
                     let args = item.split_arguments()?;
                     let family_members: Vec<FamilyMember> = args
