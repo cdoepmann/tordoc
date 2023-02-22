@@ -160,7 +160,7 @@ impl Descriptor {
                         .map(|x| {
                             if x.starts_with('$') {
                                 // if present, ignore everything starting from an "="
-                                let fp_raw = match x.split_once('=') {
+                                let fp_raw = match x.split_once(&['=', '~']) {
                                     Some((before, _after)) => &before[1..],
                                     None => &x[1..],
                                 };
