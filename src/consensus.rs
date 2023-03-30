@@ -18,7 +18,6 @@ use meta::{Document, Fingerprint};
 // External dependencies
 //
 use chrono::{offset::TimeZone, DateTime, Utc};
-use derive_builder::Builder;
 use regex::Regex;
 use strum::{EnumString, EnumVariantNames, IntoStaticStr, VariantNames};
 
@@ -304,28 +303,49 @@ impl fmt::Display for CondensedExitPolicy {
 /// A parsed consensus document ("network status").
 #[derive(Debug)]
 pub struct Consensus {
-    pub valid_after: DateTime<Utc>,
+    pub valid_after: Option<DateTime<Utc>>,
     pub relays: Vec<Relay>,
-    pub weights: BTreeMap<String, u64>,
+    pub weights: Option<BTreeMap<String, u64>>,
 }
 
 /// A relay entry within the consensus, containing only these sparse information
 /// instead of the full server descriptor
-#[derive(Debug, Clone, Builder)]
-#[builder(private)]
+#[derive(Debug, Clone)]
 pub struct Relay {
-    pub nickname: String,
-    pub fingerprint: Fingerprint,
-    pub digest: Fingerprint,
-    pub published: DateTime<Utc>,
-    pub address: Ipv4Addr,
-    pub or_port: u16,
+    pub nickname: Option<String>,
+    pub fingerprint: Option<Fingerprint>,
+    pub digest: Option<Fingerprint>,
+    pub published: Option<DateTime<Utc>>,
+    pub address: Option<Ipv4Addr>,
+    pub or_port: Option<u16>,
     pub dir_port: Option<u16>,
-    pub flags: Vec<Flag>,
-    pub version_line: String,
-    pub protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
-    pub exit_policy: CondensedExitPolicy,
-    pub bandwidth_weight: u64,
+    pub flags: Option<Vec<Flag>>,
+    pub version_line: Option<String>,
+    pub protocols: Option<BTreeMap<Protocol, SupportedProtocolVersion>>,
+    pub exit_policy: Option<CondensedExitPolicy>,
+    pub bandwidth_weight: Option<u64>,
+}
+
+impl Relay {
+    /// Construct a new, empty relay.
+    ///
+    /// This does not just derive Default because we do not want it to be in the public API.
+    fn new() -> Relay {
+        Relay {
+            nickname: None,
+            fingerprint: None,
+            digest: None,
+            published: None,
+            address: None,
+            or_port: None,
+            dir_port: None,
+            flags: None,
+            version_line: None,
+            protocols: None,
+            exit_policy: None,
+            bandwidth_weight: None,
+        }
+    }
 }
 
 ///
@@ -339,7 +359,7 @@ impl Consensus {
     /// Parse a consensus document from an already-parsed Tor meta document
     pub(crate) fn from_doc(doc: Document) -> Result<Consensus, DocumentParseError> {
         // the current relay we're constructing
-        let mut relay: Option<RelayBuilder> = None;
+        let mut relay: Option<Relay> = None;
 
         // collected relays
         let mut relays: Vec<Relay> = Vec::new();
@@ -350,13 +370,10 @@ impl Consensus {
                 "r" => {
                     // if another relay was in process, finish it
                     if let Some(old) = relay.take() {
-                        relays.push(
-                            old.build()
-                                .map_err(|err| DocumentParseError::Incomplete(Box::new(err)))?,
-                        );
+                        relays.push(old);
                     }
                     // start a new relay
-                    relay = Some(RelayBuilder::default());
+                    relay = Some(Relay::new());
                     let relay = relay.as_mut().unwrap();
 
                     // parse entries
@@ -364,24 +381,24 @@ impl Consensus {
                     match splits[..] {
                         [nickname, identity, digest, published_1, published_2, ip, or_port, dir_port, ..] =>
                         {
-                            relay.nickname(nickname.to_string());
-                            relay.fingerprint(Fingerprint::from_str_b64(identity)?);
-                            relay.digest(Fingerprint::from_str_b64(digest)?);
-                            relay.published(Utc.datetime_from_str(
+                            relay.nickname = Some(nickname.to_string());
+                            relay.fingerprint = Some(Fingerprint::from_str_b64(identity)?);
+                            relay.digest = Some(Fingerprint::from_str_b64(digest)?);
+                            relay.published = Some(Utc.datetime_from_str(
                                 &format!("{published_1} {published_2}"),
                                 "%Y-%m-%d %H:%M:%S",
                             )?);
                             let address = Ipv4Addr::from_str(ip).map_err(|_| {
                                 DocumentParseError::InvalidIpAddress(ip.to_string())
                             })?;
-                            relay.address(address);
-                            relay.or_port(u16::from_str_radix(or_port, 10).context("OR port")?);
-                            relay.dir_port(
+                            relay.address = Some(address);
+                            relay.or_port =
+                                Some(u16::from_str_radix(or_port, 10).context("OR port")?);
+                            relay.dir_port =
                                 match u16::from_str_radix(dir_port, 10).context("dir port")? {
                                     0 => None,
                                     x => Some(x),
-                                },
-                            );
+                                };
                         }
                         _ => {
                             return Err(DocumentParseError::ItemArgumentsMissing {
@@ -410,7 +427,7 @@ impl Consensus {
                                 })
                         })
                         .collect::<Result<Vec<_>, _>>()?;
-                    relay.flags(flags);
+                    relay.flags = Some(flags);
                 }
                 "v" => {
                     // get builder
@@ -419,7 +436,7 @@ impl Consensus {
                         .ok_or(DocumentParseError::UnexpectedKeyword {
                             keyword: item.keyword.to_string(),
                         })?;
-                    relay.version_line(item.arguments.unwrap_or("").to_string());
+                    relay.version_line = Some(item.arguments.unwrap_or("").to_string());
                 }
                 "pr" => {
                     // get builder
@@ -450,7 +467,7 @@ impl Consensus {
                         })?;
                         protocols.insert(prot, vers);
                     }
-                    relay.protocols(protocols);
+                    relay.protocols = Some(protocols);
                 }
                 "p" => {
                     // get builder
@@ -461,7 +478,7 @@ impl Consensus {
                         })?;
 
                     // parse policy
-                    relay.exit_policy(item.get_argument()?.parse::<CondensedExitPolicy>()?);
+                    relay.exit_policy = Some(item.get_argument()?.parse::<CondensedExitPolicy>()?);
                 }
                 "w" => {
                     // get builder
@@ -481,7 +498,7 @@ impl Consensus {
                             .ok_or(DocumentParseError::InvalidBandwidthWeight)?;
                         match k {
                             "Bandwidth" => {
-                                relay.bandwidth_weight(
+                                relay.bandwidth_weight = Some(
                                     u64::from_str_radix(v, 10)
                                         .map_err(|_| DocumentParseError::InvalidBandwidthWeight)?,
                                 );
@@ -496,10 +513,7 @@ impl Consensus {
                 }
                 _ => {
                     if let Some(last) = relay.take() {
-                        relays.push(
-                            last.build()
-                                .map_err(|err| DocumentParseError::Incomplete(Box::new(err)))?,
-                        );
+                        relays.push(last);
                     }
                     break;
                 }
@@ -512,33 +526,40 @@ impl Consensus {
                 .items
                 .iter()
                 .skip_while(|&x| x.keyword != "bandwidth-weights")
-                .next()
-                .ok_or(DocumentParseError::ConsensusWeightsMissing)?;
-            let mut weights = BTreeMap::new();
+                .next();
+            match item {
+                Some(item) => {
+                    let mut weights = BTreeMap::new();
 
-            let args = item.split_arguments()?;
-            for arg in args.iter() {
-                let (k, v) = arg
-                    .split_once('=')
-                    .ok_or(DocumentParseError::MalformedConsensusWeights)?;
-                let v = u64::from_str_radix(v, 10)
-                    .map_err(|_| DocumentParseError::MalformedConsensusWeights)?;
-                weights.insert(k.to_string(), v);
+                    let args = item.split_arguments()?;
+                    for arg in args.iter() {
+                        let (k, v) = arg
+                            .split_once('=')
+                            .ok_or(DocumentParseError::MalformedConsensusWeights)?;
+                        let v = u64::from_str_radix(v, 10)
+                            .map_err(|_| DocumentParseError::MalformedConsensusWeights)?;
+                        weights.insert(k.to_string(), v);
+                    }
+
+                    Some(weights)
+                }
+                None => None,
             }
-
-            weights
         };
 
         // collect valid-after
         let valid_after = {
-            let item = doc
+            if let Some(item) = doc
                 .items
                 .iter()
                 .skip_while(|&x| x.keyword != "valid-after")
                 .next()
-                .ok_or(DocumentParseError::ValidAfterMissing)?;
-            let arg = item.get_argument()?;
-            Utc.datetime_from_str(arg, "%Y-%m-%d %H:%M:%S")?
+            {
+                let arg = item.get_argument()?;
+                Some(Utc.datetime_from_str(arg, "%Y-%m-%d %H:%M:%S")?)
+            } else {
+                None
+            }
         };
         // return everything
         Ok(Consensus {
@@ -605,7 +626,15 @@ impl Consensus {
         // Lookup the descriptors
         let mut descriptors = Vec::new();
         for relay in self.relays.iter() {
-            let digest = format!("{}", relay.digest);
+            let digest_raw =
+                relay
+                    .digest
+                    .as_ref()
+                    .ok_or(DocumentCombiningError::IncompleteRelay {
+                        field: "digest".to_string(),
+                    })?;
+
+            let digest = format!("{}", digest_raw);
             let first_char = digest.chars().next().unwrap();
             let second_char = digest.chars().skip(1).next().unwrap();
 
@@ -619,7 +648,7 @@ impl Consensus {
                 previous_path
             } else {
                 return Err(DocumentCombiningError::MissingDescriptor {
-                    digest: relay.digest.to_string_hex(),
+                    digest: digest_raw.to_string_hex(),
                 });
             };
 

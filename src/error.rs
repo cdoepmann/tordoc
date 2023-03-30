@@ -103,6 +103,8 @@ pub enum DocumentCombiningError {
     InvalidFolderStructure,
     #[error("There was an error when parsing one of the referenced descriptor documents")]
     DocumentParseError(#[from] DocumentParseError),
+    #[error("Found incompletely parsed relay, missing field \"{field}\"")]
+    IncompleteRelay { field: String },
 }
 
 pub(crate) trait ErrorContext<T> {
