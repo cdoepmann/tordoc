@@ -107,6 +107,15 @@ pub enum DocumentCombiningError {
     IncompleteRelay { field: String },
 }
 
+impl DocumentCombiningError {
+    /// Create a new IncompleteRelay error, easily
+    pub fn incomplete_relay(field: impl Into<String>) -> DocumentCombiningError {
+        DocumentCombiningError::IncompleteRelay {
+            field: field.into(),
+        }
+    }
+}
+
 pub(crate) trait ErrorContext<T> {
     type IntoError;
 

@@ -9,7 +9,6 @@ edition = "2021"
 nom = "7"
 phf = { version = "0.10", features = ["macros"] }
 thiserror = "1.0"
-derive_builder = "0.10.2"
 chrono = "0.4"
 strum = { version = "0.24", features = ["derive"] }
 strum_macros = "0.24"

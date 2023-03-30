@@ -19,7 +19,6 @@ pub use exit::{
 // External dependencies
 //
 use chrono::{offset::TimeZone, DateTime, Utc};
-use derive_builder::Builder;
 use sha1::{Digest, Sha1};
 
 #[derive(Debug, Clone)]
@@ -38,26 +37,40 @@ pub struct OrAddress {
 ///
 /// We here only focus on pieces of information that aren't present in the
 /// consensus yet.
-#[derive(Debug, Clone, Builder)]
-#[builder(private)]
+#[derive(Debug, Clone)]
 pub struct Descriptor {
-    pub nickname: String,
-    pub fingerprint: Fingerprint,
-    pub digest: Fingerprint,
-    pub published: DateTime<Utc>,
-    #[builder(setter(custom))]
-    pub or_addresses: Vec<OrAddress>,
-    #[builder(default)]
-    pub family_members: Vec<FamilyMember>,
-    pub bandwidth_avg: u64,
-    pub bandwidth_burst: u64,
-    pub bandwidth_observed: u64,
-    pub exit_policy: DescriptorExitPolicy,
-    #[builder(default)]
-    pub exit_policies_ipv6: DescriptorExitPolicyIPv6,
+    pub nickname: Option<String>,
+    pub fingerprint: Option<Fingerprint>,
+    pub digest: Option<Fingerprint>,
+    pub published: Option<DateTime<Utc>>,
+    pub or_addresses: Option<Vec<OrAddress>>,
+    pub family_members: Option<Vec<FamilyMember>>,
+    pub bandwidth_avg: Option<u64>,
+    pub bandwidth_burst: Option<u64>,
+    pub bandwidth_observed: Option<u64>,
+    pub exit_policy: Option<DescriptorExitPolicy>,
+    pub exit_policies_ipv6: Option<DescriptorExitPolicyIPv6>,
 }
 
-impl DescriptorBuilder {
+impl Descriptor {
+    fn new() -> Descriptor {
+        Descriptor {
+            nickname: None,
+            fingerprint: None,
+            digest: None,
+            published: None,
+            or_addresses: None,
+            family_members: None,
+            bandwidth_avg: None,
+            bandwidth_burst: None,
+            bandwidth_observed: None,
+            exit_policy: None,
+            exit_policies_ipv6: None,
+        }
+    }
+}
+
+impl Descriptor {
     fn add_or_address(&mut self, or: OrAddress) {
         self.or_addresses.get_or_insert_with(Vec::new).push(or);
     }
@@ -109,17 +122,17 @@ impl Descriptor {
         let mut descriptor = Descriptor::from_str(lossy_text)?;
 
         // Override digest
-        descriptor.digest = digest;
+        descriptor.digest = Some(digest);
 
         Ok(descriptor)
     }
 
     /// Parse a descriptor document from an already-parsed Tor meta document
     pub(crate) fn from_doc(doc: Document) -> Result<Descriptor, DocumentParseError> {
-        let mut builder = DescriptorBuilder::default();
+        let mut descriptor = Descriptor::new();
 
         // compute digest
-        builder.digest(digest_from_raw(
+        descriptor.digest = Some(digest_from_raw(
             doc.get_raw_content_between("router", "\nrouter-signature\n")?,
         ));
 
@@ -130,7 +143,7 @@ impl Descriptor {
                     match splits[..] {
                         // nickname address ORPort SOCKSPort DirPort
                         [nickname, ip, or_port, _socks_port, _dir_port, ..] => {
-                            builder.nickname(nickname.to_string());
+                            descriptor.nickname = Some(nickname.to_string());
 
                             let ip = IpAddr::from_str(ip).map_err(|_| {
                                 DocumentParseError::InvalidIpAddress(ip.to_string())
@@ -140,7 +153,7 @@ impl Descriptor {
                                 port: or_port.parse::<u16>().context("OR port (descriptor)")?,
                             };
 
-                            builder.add_or_address(or_address);
+                            descriptor.add_or_address(or_address);
                         }
                         _ => {
                             return Err(DocumentParseError::ItemArgumentsMissing {
@@ -151,13 +164,13 @@ impl Descriptor {
                 }
                 "fingerprint" => {
                     let arg = item.get_argument()?;
-                    builder.fingerprint(Fingerprint::from_str_hex(arg)?);
+                    descriptor.fingerprint = Some(Fingerprint::from_str_hex(arg)?);
                 }
                 "opt" => {
                     let arg = item.get_argument()?;
                     if arg.starts_with("fingerprint ") {
-                        builder
-                            .fingerprint(Fingerprint::from_str_hex(&arg["fingerprint ".len()..])?);
+                        descriptor.fingerprint =
+                            Some(Fingerprint::from_str_hex(&arg["fingerprint ".len()..])?);
                     }
                 }
                 "family" => {
@@ -180,26 +193,26 @@ impl Descriptor {
                             }
                         })
                         .collect::<Result<Vec<FamilyMember>, DocumentParseError>>()?;
-                    builder.family_members(family_members);
+                    descriptor.family_members = Some(family_members);
                 }
                 "published" => {
                     let arg = item.get_argument()?;
-                    builder.published(Utc.datetime_from_str(arg, "%Y-%m-%d %H:%M:%S")?);
+                    descriptor.published = Some(Utc.datetime_from_str(arg, "%Y-%m-%d %H:%M:%S")?);
                 }
                 "bandwidth" => {
                     let splits = item.split_arguments()?;
                     match splits[..] {
                         // bandwidth-avg bandwidth-burst bandwidth-observed
                         [bandwidth_avg, bandwidth_burst, bandwidth_observed, ..] => {
-                            builder.bandwidth_avg(
+                            descriptor.bandwidth_avg = Some(
                                 u64::from_str_radix(bandwidth_avg, 10)
                                     .context("bw avg (descriptor)")?,
                             );
-                            builder.bandwidth_burst(
+                            descriptor.bandwidth_burst = Some(
                                 u64::from_str_radix(bandwidth_burst, 10)
                                     .context("bw burst (descriptor)")?,
                             );
-                            builder.bandwidth_observed(
+                            descriptor.bandwidth_observed = Some(
                                 u64::from_str_radix(bandwidth_observed, 10)
                                     .context("bw observed (descriptor)")?,
                             );
@@ -226,7 +239,7 @@ impl Descriptor {
                                     .parse::<u16>()
                                     .context("OR-address port IPv6 (descriptor)")?,
                             };
-                            builder.add_or_address(or_address);
+                            descriptor.add_or_address(or_address);
                         }
                         // IPv4
                         [ip_and_port_str] => {
@@ -242,7 +255,7 @@ impl Descriptor {
                                             .parse::<u16>()
                                             .context("OR-address port IPv4 (descriptor)")?,
                                     };
-                                    builder.add_or_address(or_address);
+                                    descriptor.add_or_address(or_address);
                                 }
                                 _ => return Err(DocumentParseError::args_missing(item.keyword)),
                             }
@@ -252,22 +265,20 @@ impl Descriptor {
                     }
                 }
                 "accept" => {
-                    exit::parse_kw_accept(&mut builder, item)?;
+                    exit::parse_kw_accept(&mut descriptor, item)?;
                 }
                 "reject" => {
-                    exit::parse_kw_reject(&mut builder, item)?;
+                    exit::parse_kw_reject(&mut descriptor, item)?;
                 }
 
                 "ipv6-policy" => {
-                    exit::parse_kw_ipv6_policy(&mut builder, item)?;
+                    exit::parse_kw_ipv6_policy(&mut descriptor, item)?;
                 }
                 _ => {}
             }
         }
 
-        Ok(builder
-            .build()
-            .map_err(|e| DocumentParseError::Incomplete(Box::new(e)))?)
+        Ok(descriptor)
     }
 }
 

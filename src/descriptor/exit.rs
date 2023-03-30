@@ -6,7 +6,7 @@ use std::str::FromStr;
 use crate::error::DocumentParseError;
 
 use super::meta::Item;
-use super::DescriptorBuilder;
+use super::Descriptor;
 
 use ipnet::IpNet;
 
@@ -154,21 +154,21 @@ pub(super) fn parse_exit_policy_port(port_str: &str) -> Result<ExitPolicyPort, D
 }
 
 pub(super) fn parse_kw_accept<'a>(
-    descriptor: &mut DescriptorBuilder,
+    descriptor: &mut Descriptor,
     item: &Item<'a>,
 ) -> Result<(), DocumentParseError> {
     parse_exit_policy_rule(descriptor, item, ExitPolicyType::Accept)
 }
 
 pub(super) fn parse_kw_reject<'a>(
-    descriptor: &mut DescriptorBuilder,
+    descriptor: &mut Descriptor,
     item: &Item<'a>,
 ) -> Result<(), DocumentParseError> {
     parse_exit_policy_rule(descriptor, item, ExitPolicyType::Reject)
 }
 
 pub(super) fn parse_exit_policy_rule<'a>(
-    descriptor: &mut DescriptorBuilder,
+    descriptor: &mut Descriptor,
     item: &Item<'a>,
     ept: ExitPolicyType,
 ) -> Result<(), DocumentParseError> {
@@ -188,7 +188,7 @@ pub(super) fn parse_exit_policy_rule<'a>(
 }
 
 pub(super) fn parse_kw_ipv6_policy<'a>(
-    builder: &mut DescriptorBuilder,
+    descriptor: &mut Descriptor,
     item: &Item<'a>,
 ) -> Result<(), DocumentParseError> {
     let (policy_str, port_list_str) = item
@@ -206,7 +206,7 @@ pub(super) fn parse_kw_ipv6_policy<'a>(
         policy: policy,
         port_list: port_list,
     };
-    builder.exit_policies_ipv6(ipv6_policy);
+    descriptor.exit_policies_ipv6 = Some(ipv6_policy);
     Ok(())
 }
 
