@@ -221,6 +221,27 @@ pub struct CondensedExitPolicy {
 }
 
 impl CondensedExitPolicy {
+    /// Create a new exit policy that allows everything (`accept *:*`)
+    pub fn accept_all() -> CondensedExitPolicy {
+        CondensedExitPolicy {
+            policy_type: ExitPolicyType::Accept,
+            entries: vec![ExitPolicyEntry::PortRange {
+                min: 1,
+                max: u16::MAX,
+            }],
+        }
+    }
+    /// Create a new exit policy that rejects everything (`reject *:*`)
+    pub fn reject_all() -> CondensedExitPolicy {
+        CondensedExitPolicy {
+            policy_type: ExitPolicyType::Reject,
+            entries: vec![ExitPolicyEntry::PortRange {
+                min: 1,
+                max: u16::MAX,
+            }],
+        }
+    }
+
     pub fn to_descriptor_lines(&self) -> Vec<String> {
         match self.policy_type {
             ExitPolicyType::Reject => {
