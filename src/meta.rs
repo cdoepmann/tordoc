@@ -1,7 +1,7 @@
 //! The general meta format for Tor documents
 
 use std::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use super::error::{DocumentParseError, ErrorContext};
 
@@ -264,14 +264,14 @@ impl<'a> Object<'a> {
 /// Under the hood, a fingerprint is currently just a blob.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Fingerprint {
-    blob: Rc<Vec<u8>>,
+    blob: Arc<Vec<u8>>,
 }
 
 impl Fingerprint {
     pub fn from_str_b64(raw_b64: impl AsRef<str>) -> Result<Fingerprint, DocumentParseError> {
         let raw_b64 = raw_b64.as_ref();
         Ok(Fingerprint {
-            blob: Rc::new(base64::decode(raw_b64)?),
+            blob: Arc::new(base64::decode(raw_b64)?),
         })
     }
     pub fn from_str_hex(raw_hex: impl AsRef<str>) -> Result<Fingerprint, DocumentParseError> {
@@ -285,12 +285,12 @@ impl Fingerprint {
         }
 
         Ok(Fingerprint {
-            blob: Rc::new(blob),
+            blob: Arc::new(blob),
         })
     }
     pub fn from_u8(raw: impl AsRef<[u8]>) -> Fingerprint {
         Fingerprint {
-            blob: Rc::new(raw.as_ref().to_vec()),
+            blob: Arc::new(raw.as_ref().to_vec()),
         }
     }
 
@@ -383,7 +383,7 @@ mod tests {
         assert_eq!(
             Fingerprint::from_str_hex("12FF 0B42").unwrap(),
             Fingerprint {
-                blob: Rc::new(vec![0x12, 0xff, 0x0b, 0x42])
+                blob: Arc::new(vec![0x12, 0xff, 0x0b, 0x42])
             }
         );
     }
