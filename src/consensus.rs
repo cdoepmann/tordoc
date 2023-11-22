@@ -52,6 +52,7 @@ impl Flag {
 #[derive(Debug, Clone, EnumString, IntoStaticStr, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Protocol {
     Cons,
+    Conflux,
     Desc,
     DirCache,
     FlowCtrl,
